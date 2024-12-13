@@ -1,0 +1,82 @@
+version: '3.9'
+
+services:
+  data-input-postgres:
+    build: data_input/postgres
+    container_name: data_input_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  data-input-mongo:
+    build: data_input/mongodb
+    container_name: data_input_mongo
+    restart: unless-stopped
+
+    environment:
+      MONGODB_HOST: ${MONGODB_HOST} # edit
+      MONGODB_PORT: ${MONGODB_PORT} # edit
+      MONGODB_USER: ${MONGODB_USER} # edit
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD} # edit
+      MONGODB_DB: "imdb"
+      MONGODB_COLLECTION: "movies_collection"
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    hostname: postgres
+    user: postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U postgres -d postgres'"]
+      interval: 5s
+      timeout: 10s
+      retries: 120
+
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+    ports:
+      - "5432:5432"
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    restart: unless-stopped
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command: 'tcp postgres:5432'
+    ports:
+      - 4040:4040
+
+  streamlit:
+    build: streamlit
+    container_name: streamlit
+
+    ports:
+      - 8501:8501
+
+    environment:
+      PINECONE_API_KEY: ${PINECONE_API_KEY} # edit
+      PINECONE_HOST: ${PINECONE_HOST}  # edit
+      OPENAI_API_KEY: ${OPENAI_API_KEY} # edit
